@@ -14,7 +14,7 @@ provider "docker" {
 resource "docker_network" "asylum_network" {
   name   = "asylum-${var.environment}"
   driver = "bridge"
-  
+
   ipam_config {
     subnet = var.network_cidr
   }

@@ -84,7 +84,7 @@ resource "google_compute_instance" "honeypot" {
 
   network_interface {
     subnetwork = google_compute_subnetwork.asylum.id
-    
+
     access_config {
       // Ephemeral public IP
     }
@@ -123,7 +123,7 @@ resource "google_compute_instance" "monitoring" {
 
   network_interface {
     subnetwork = google_compute_subnetwork.asylum.id
-    
+
     access_config {
       // Ephemeral public IP
     }
