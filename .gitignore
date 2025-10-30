@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+.terraform.lock.hcl
+terraform.tfstate.d/
+
+# Docker
+docker-compose.override.yml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.local
+
+# Model artifacts
+ai/model/saved_models/*
+!ai/model/saved_models/.gitkeep
+
+# Data
+ai/data/*
+!ai/data/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Monitoring data
+prometheus_data/
+grafana_data/
+elasticsearch_data/
+
+# Honeypot data
+honeypot/cowrie/rotation.log
+cowrie_logs/
+cowrie_downloads/

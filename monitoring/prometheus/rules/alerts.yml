@@ -1,0 +1,81 @@
+groups:
+  - name: honeypot_alerts
+    interval: 30s
+    rules:
+      - alert: HighAnomalyRate
+        expr: (rate(honeypot_anomalies_total[5m]) / rate(honeypot_events_total[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High anomaly rate detected"
+          description: "Anomaly rate is {{ $value }}% over the last 5 minutes"
+
+      - alert: HoneypotDown
+        expr: up{job="honeypot-cowrie"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Honeypot instance is down"
+          description: "Honeypot {{ $labels.instance }} has been down for more than 2 minutes"
+
+      - alert: HighConnectionRate
+        expr: rate(honeypot_connections_total[1m]) > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High connection rate to honeypot"
+          description: "Connection rate is {{ $value }} connections/sec"
+
+  - name: infrastructure_alerts
+    interval: 30s
+    rules:
+      - alert: HighCPUUsage
+        expr: (100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 15
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low disk space"
+          description: "Only {{ $value }}% disk space available on {{ $labels.instance }}"
+
+  - name: ai_alerts
+    interval: 30s
+    rules:
+      - alert: AIServiceDown
+        expr: up{job="ai-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "AI API service is down"
+          description: "AI API has been down for more than 2 minutes"
+
+      - alert: HighInferenceLatency
+        expr: histogram_quantile(0.95, rate(ai_inference_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High AI inference latency"
+          description: "95th percentile inference time is {{ $value }}s"
