@@ -7,10 +7,6 @@ terraform {
   }
 }
 
-provider "azurerm" {
-  features {}
-}
-
 resource "azurerm_resource_group" "asylum" {
   name     = "asylum-rg-${var.environment}"
   location = var.region
@@ -121,7 +117,7 @@ resource "azurerm_linux_virtual_machine" "honeypot" {
 
   admin_ssh_key {
     username   = "azureuser"
-    public_key = file("~/.ssh/id_rsa.pub")
+    public_key = var.ssh_public_key
   }
 
   os_disk {
@@ -191,7 +187,7 @@ resource "azurerm_linux_virtual_machine" "monitoring" {
 
   admin_ssh_key {
     username   = "azureuser"
-    public_key = file("~/.ssh/id_rsa.pub")
+    public_key = var.ssh_public_key
   }
 
   os_disk {

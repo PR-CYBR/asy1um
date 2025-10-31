@@ -42,3 +42,9 @@ variable "enable_honeypot" {
   description = "Enable honeypot"
   type        = bool
 }
+
+variable "ssh_public_key" {
+  description = "SSH public key for Azure VMs"
+  type        = string
+  default     = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC7... # Replace with actual key or pass via variable"
+}

@@ -87,4 +87,5 @@ module "azure" {
   tags              = var.tags
   enable_monitoring = var.enable_monitoring
   enable_honeypot   = var.enable_honeypot
+  ssh_public_key    = var.ssh_public_key
 }

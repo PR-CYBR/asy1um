@@ -59,3 +59,9 @@ variable "enable_honeypot" {
   type        = bool
   default     = true
 }
+
+variable "ssh_public_key" {
+  description = "SSH public key for cloud VMs (Azure)"
+  type        = string
+  default     = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC7... # Placeholder - replace with actual key"
+}
