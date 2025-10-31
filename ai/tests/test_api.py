@@ -1,6 +1,7 @@
 """
 Basic tests for FastAPI application
 """
+
 import sys
 from pathlib import Path
 
@@ -50,5 +51,5 @@ class TestAPI:
         assert response.json() is not None
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

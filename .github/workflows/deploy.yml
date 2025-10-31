@@ -7,7 +7,7 @@ on:
     branches: [ main, develop ]
 
 env:
-  TERRAFORM_VERSION: '1.6.0'
+  TERRAFORM_VERSION: '1.5.7'
   PYTHON_VERSION: '3.11'
   NODE_VERSION: '18'
 
@@ -40,7 +40,7 @@ jobs:
 
       - name: Install Node dependencies
         working-directory: ./orchestration
-        run: npm ci
+        run: npm install
 
       - name: Lint JavaScript code
         working-directory: ./orchestration
@@ -143,7 +143,7 @@ jobs:
 
       - name: Install Node dependencies
         working-directory: ./orchestration
-        run: npm ci
+        run: npm install
 
       - name: Run Node tests
         working-directory: ./orchestration
@@ -217,17 +217,17 @@ jobs:
         with:
           script: |
             const output = `#### Terraform Plan 📖
-            
+
             <details><summary>Show Plan</summary>
-            
+
             \`\`\`
             Terraform plan completed. Review the plan output.
             \`\`\`
-            
+
             </details>
-            
+
             *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,

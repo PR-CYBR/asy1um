@@ -19,11 +19,11 @@ from model.anomaly_detector import AnomalyDetector  # noqa: E402
 
 def load_training_data(data_path):
     """Load training data from file."""
-    if data_path.endswith('.json'):
-        with open(data_path, 'r') as f:
+    if data_path.endswith(".json"):
+        with open(data_path, "r") as f:
             data = json.load(f)
-            return np.array(data['features'])
-    elif data_path.endswith('.npy'):
+            return np.array(data["features"])
+    elif data_path.endswith(".npy"):
         return np.load(data_path)
     else:
         raise ValueError("Unsupported file format. Use .json or .npy")
@@ -35,47 +35,14 @@ def generate_synthetic_data(n_samples=1000, n_features=20):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Train anomaly detection model')
-    parser.add_argument(
-        '--data',
-        type=str,
-        help='Path to training data file (.json or .npy)'
-    )
-    parser.add_argument(
-        '--synthetic',
-        action='store_true',
-        help='Use synthetic data for training'
-    )
-    parser.add_argument(
-        '--epochs',
-        type=int,
-        default=50,
-        help='Number of training epochs'
-    )
-    parser.add_argument(
-        '--batch-size',
-        type=int,
-        default=32,
-        help='Batch size for training'
-    )
-    parser.add_argument(
-        '--input-dim',
-        type=int,
-        default=20,
-        help='Input feature dimension'
-    )
-    parser.add_argument(
-        '--encoding-dim',
-        type=int,
-        default=10,
-        help='Encoding dimension'
-    )
-    parser.add_argument(
-        '--model-name',
-        type=str,
-        default='anomaly_detector',
-        help='Name for saving the model'
-    )
+    parser = argparse.ArgumentParser(description="Train anomaly detection model")
+    parser.add_argument("--data", type=str, help="Path to training data file (.json or .npy)")
+    parser.add_argument("--synthetic", action="store_true", help="Use synthetic data for training")
+    parser.add_argument("--epochs", type=int, default=50, help="Number of training epochs")
+    parser.add_argument("--batch-size", type=int, default=32, help="Batch size for training")
+    parser.add_argument("--input-dim", type=int, default=20, help="Input feature dimension")
+    parser.add_argument("--encoding-dim", type=int, default=10, help="Encoding dimension")
+    parser.add_argument("--model-name", type=str, default="anomaly_detector", help="Name for saving the model")
 
     args = parser.parse_args()
 
@@ -98,11 +65,7 @@ def main():
 
     # Train model
     print(f"Training model for {args.epochs} epochs...")
-    history = detector.train(
-        X_train,
-        epochs=args.epochs,
-        batch_size=args.batch_size
-    )
+    history = detector.train(X_train, epochs=args.epochs, batch_size=args.batch_size)
 
     print("\nTraining complete!")
     print(f"Final loss: {history.history['loss'][-1]:.4f}")
