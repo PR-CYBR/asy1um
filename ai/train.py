@@ -74,13 +74,13 @@ def main():
         default='anomaly_detector',
         help='Name for saving the model'
     )
-    
+
     args = parser.parse_args()
-    
+
     # Initialize detector
     print(f"Initializing Anomaly Detector (input_dim={args.input_dim}, encoding_dim={args.encoding_dim})...")
     detector = AnomalyDetector(input_dim=args.input_dim, encoding_dim=args.encoding_dim)
-    
+
     # Load or generate training data
     if args.synthetic:
         print("Generating synthetic training data...")
@@ -91,9 +91,9 @@ def main():
     else:
         print("No data source specified. Using synthetic data...")
         X_train = generate_synthetic_data(n_samples=1000, n_features=args.input_dim)
-    
+
     print(f"Training data shape: {X_train.shape}")
-    
+
     # Train model
     print(f"Training model for {args.epochs} epochs...")
     history = detector.train(
@@ -101,15 +101,15 @@ def main():
         epochs=args.epochs,
         batch_size=args.batch_size
     )
-    
-    print(f"\nTraining complete!")
+
+    print("\nTraining complete!")
     print(f"Final loss: {history.history['loss'][-1]:.4f}")
     print(f"Anomaly threshold: {detector.threshold:.4f}")
-    
+
     # Save model
     print(f"\nSaving model as '{args.model_name}'...")
     detector.save_model(name=args.model_name)
-    
+
     print("\nModel training and saving completed successfully!")
 
 
