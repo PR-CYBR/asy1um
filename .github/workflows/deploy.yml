@@ -76,7 +76,7 @@ jobs:
 
       - name: Terraform Init
         working-directory: ./terraform
-        run: terraform init -backend=false
+        run: terraform init -backend=false -upgrade
 
       - name: Terraform Validate
         working-directory: ./terraform
@@ -189,7 +189,7 @@ jobs:
 
       - name: Terraform Init
         working-directory: ./terraform
-        run: terraform init -backend=false
+        run: terraform init -backend=false -upgrade
 
       - name: Terraform Plan
         working-directory: ./terraform
