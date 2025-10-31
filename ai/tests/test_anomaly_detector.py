@@ -28,9 +28,9 @@ class TestAnomalyDetector:
         """Test model training with synthetic data"""
         detector = AnomalyDetector(input_dim=20, encoding_dim=10)
         X_train = np.random.randn(100, 20)
-        
+
         history = detector.train(X_train, epochs=5, batch_size=16)
-        
+
         assert detector.model is not None
         assert detector.threshold is not None
         assert detector.threshold > 0
@@ -41,11 +41,11 @@ class TestAnomalyDetector:
         detector = AnomalyDetector(input_dim=20, encoding_dim=10)
         X_train = np.random.randn(100, 20)
         detector.train(X_train, epochs=5, batch_size=16)
-        
+
         # Test with normal data
         X_test = np.random.randn(50, 20)
         results = detector.predict(X_test)
-        
+
         assert 'anomaly_scores' in results
         assert 'is_anomaly' in results
         assert 'threshold' in results
@@ -58,11 +58,11 @@ class TestAnomalyDetector:
         detector = AnomalyDetector(input_dim=20, encoding_dim=10)
         X_train = np.random.randn(100, 20)
         detector.train(X_train, epochs=5, batch_size=16)
-        
+
         # Create obvious anomalies
         X_test = np.random.randn(10, 20) * 5  # Scaled up significantly
         results = detector.predict(X_test)
-        
+
         # Should detect some anomalies
         assert results['anomaly_count'] > 0
 
@@ -70,7 +70,7 @@ class TestAnomalyDetector:
         """Test that prediction fails without training"""
         detector = AnomalyDetector(input_dim=20, encoding_dim=10)
         X_test = np.random.randn(10, 20)
-        
+
         with pytest.raises(ValueError):
             detector.predict(X_test)
 
@@ -85,9 +85,9 @@ class TestRecommendations:
             'is_anomaly': [False] * 95 + [True] * 5
         }
         current_state = {'node_count': 3}
-        
+
         recommendations = generate_recommendations(anomaly_results, current_state)
-        
+
         assert recommendations['severity'] == 'low'
         assert len(recommendations['actions']) == 0
 
@@ -98,9 +98,9 @@ class TestRecommendations:
             'is_anomaly': [False] * 85 + [True] * 15
         }
         current_state = {'node_count': 3}
-        
+
         recommendations = generate_recommendations(anomaly_results, current_state)
-        
+
         assert recommendations['severity'] == 'medium'
         assert len(recommendations['actions']) > 0
 
@@ -111,9 +111,9 @@ class TestRecommendations:
             'is_anomaly': [False] * 70 + [True] * 30
         }
         current_state = {'node_count': 3}
-        
+
         recommendations = generate_recommendations(anomaly_results, current_state)
-        
+
         assert recommendations['severity'] == 'high'
         assert any(action['type'] == 'scale_up' for action in recommendations['actions'])
 
@@ -124,9 +124,9 @@ class TestRecommendations:
             'is_anomaly': [False] * 40 + [True] * 60
         }
         current_state = {'node_count': 3}
-        
+
         recommendations = generate_recommendations(anomaly_results, current_state)
-        
+
         assert recommendations['severity'] == 'critical'
         assert any(action['type'] == 'scale_up' for action in recommendations['actions'])
         assert any(action['type'] == 'rotate_honeypots' for action in recommendations['actions'])

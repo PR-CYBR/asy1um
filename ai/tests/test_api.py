@@ -1,15 +1,16 @@
 """
 Basic tests for FastAPI application
 """
-import pytest
-from fastapi.testclient import TestClient
 import sys
 from pathlib import Path
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from api.main import app
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from api.main import app  # noqa: E402
 
 client = TestClient(app)
 

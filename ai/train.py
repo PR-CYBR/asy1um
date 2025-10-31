@@ -4,15 +4,17 @@ Training script for the anomaly detection model.
 Loads log data and trains the model for deployment.
 """
 
-import numpy as np
-import json
-import argparse
-from pathlib import Path
 import sys
+from pathlib import Path
 
+# Add parent directory to path before importing model
 sys.path.append(str(Path(__file__).parent.parent))
 
-from model.anomaly_detector import AnomalyDetector
+import numpy as np  # noqa: E402
+import json  # noqa: E402
+import argparse  # noqa: E402
+
+from model.anomaly_detector import AnomalyDetector  # noqa: E402
 
 
 def load_training_data(data_path):
