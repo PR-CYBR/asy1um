@@ -1,0 +1,18 @@
+extends: default
+
+ignore: |
+  **/node_modules/**
+  orchestration/node_modules/**
+
+rules:
+  line-length:
+    max: 120
+    allow-non-breakable-words: true
+    level: warning
+  trailing-spaces: enable
+  new-line-at-end-of-file: enable
+  document-start: disable
+  comments:
+    min-spaces-from-content: 1
+  truthy:
+    allowed-values: ['true', 'false', 'on', 'off', 'yes', 'no']

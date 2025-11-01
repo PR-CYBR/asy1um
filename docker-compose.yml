@@ -1,0 +1,226 @@
+version: '3.8'
+
+services:
+  # Elasticsearch
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: asylum-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+      - ./monitoring/elk/elasticsearch/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+    ports:
+      - "9200:9200"
+    networks:
+      - asylum-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Logstash
+  logstash:
+    build:
+      context: ./monitoring/elk/logstash
+      dockerfile: Dockerfile
+    container_name: asylum-logstash
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - "5000:5000"
+      - "5044:5044"
+      - "8080:8080"
+    networks:
+      - asylum-network
+    environment:
+      - "LS_JAVA_OPTS=-Xms256m -Xmx256m"
+
+  # Kibana
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: asylum-kibana
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - ./monitoring/elk/kibana/kibana.yml:/usr/share/kibana/config/kibana.yml
+    ports:
+      - "5601:5601"
+    networks:
+      - asylum-network
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+
+  # Prometheus
+  prometheus:
+    build:
+      context: ./monitoring/prometheus
+      dockerfile: Dockerfile
+    container_name: asylum-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus_data:/prometheus
+    networks:
+      - asylum-network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+
+  # Grafana
+  grafana:
+    build:
+      context: ./monitoring/grafana
+      dockerfile: Dockerfile
+    container_name: asylum-grafana
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - asylum-network
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=asylum_admin_2024
+
+  # Node Exporter
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: asylum-node-exporter
+    ports:
+      - "9100:9100"
+    networks:
+      - asylum-network
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+
+  # cAdvisor
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: asylum-cadvisor
+    ports:
+      - "8081:8080"
+    networks:
+      - asylum-network
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    privileged: true
+    devices:
+      - /dev/kmsg
+
+  # Cowrie Honeypot
+  cowrie:
+    build:
+      context: ./honeypot/cowrie
+      dockerfile: Dockerfile
+    container_name: asylum-cowrie
+    depends_on:
+      - logstash
+      - elasticsearch
+    ports:
+      - "2222:2222"
+      - "2223:2223"
+    volumes:
+      - cowrie_logs:/cowrie/cowrie-git/var/log
+      - cowrie_downloads:/cowrie/cowrie-git/var/downloads
+    networks:
+      - asylum-network
+    environment:
+      - COWRIE_JSON_LOG_ENABLED=true
+
+  # AI API
+  ai-api:
+    build:
+      context: ./ai
+      dockerfile: Dockerfile
+    container_name: asylum-ai-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ai_models:/app/model/saved_models
+      - ai_data:/app/data
+    networks:
+      - asylum-network
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Orchestration API
+  orchestration-api:
+    build:
+      context: ./orchestration
+      dockerfile: Dockerfile
+    container_name: asylum-orchestration-api
+    depends_on:
+      - ai-api
+    ports:
+      - "3001:3000"
+    networks:
+      - asylum-network
+    environment:
+      - PORT=3000
+      - AI_API_URL=http://ai-api:8000
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Scheduler
+  scheduler:
+    build:
+      context: ./orchestration
+      dockerfile: Dockerfile
+    container_name: asylum-scheduler
+    depends_on:
+      - orchestration-api
+      - ai-api
+    networks:
+      - asylum-network
+    environment:
+      - AI_API_URL=http://ai-api:8000
+      - ORCHESTRATION_API_URL=http://orchestration-api:3000
+      - ANALYSIS_INTERVAL=*/15 * * * *
+      - DRIFT_CHECK_INTERVAL=0 */6 * * *
+      - MODEL_RETRAIN_INTERVAL=0 2 * * *
+    command: ["npm", "run", "scheduler"]
+
+networks:
+  asylum-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  elasticsearch_data:
+  prometheus_data:
+  grafana_data:
+  cowrie_logs:
+  cowrie_downloads:
+  ai_models:
+  ai_data:
