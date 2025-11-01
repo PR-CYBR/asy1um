@@ -45,7 +45,7 @@ on:
 # Cancels in-progress builds when new commits are pushed
 # This prevents wasted resources on outdated builds
 concurrency:
-  group: ${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -53,17 +53,31 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  # Job 1: Build Base ML Image
+  # Job 1: Detect changes to requirements.txt
+  # Uses PR-friendly path filtering to determine if base image needs rebuild
+  detect-changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      base_changed: ${{ steps.filter.outputs.base }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            base:
+              - '**/requirements.txt'
+
+  # Job 2: Build Base ML Image
   # This job builds the base image containing heavy ML dependencies.
   # It only runs when requirements.txt changes or when manually triggered.
-  build-base-image:
+  build-base-ml:
     name: Build Base ML Image
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.base_changed == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    # Only build base image when requirements.txt changes or on workflow_dispatch
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      contains(github.event.head_commit.modified, 'requirements.txt') ||
-      contains(github.event.head_commit.added, 'requirements.txt')
     permissions:
       contents: read
       packages: write
@@ -72,72 +86,52 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Set up QEMU for multi-platform builds
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       # Set up Docker Buildx for advanced build features
-      # Buildx enables efficient caching and multi-platform builds
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       # Log in to GitHub Container Registry
-      # Required for pushing images to ghcr.io
-      - name: Log in to Container Registry
+      - name: Login to GHCR
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # Cache pip packages to speed up base image builds
-      # This cache persists across workflow runs
       - name: Cache pip packages
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      # Extract metadata for Docker image tagging
-      - name: Extract metadata for Base Image
-        id: meta-base
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=base-ml
-            type=raw,value=base-ml-{{date 'YYYYMMDD-HHmmss'}}
-            type=sha,prefix=base-ml-
 
       # Build and push the base image with layer caching
-      # cache-from: Retrieves layers from previous builds
-      # cache-to: Stores layers for future builds (mode=max stores all layers)
-      - name: Build and Push Base Image
+      - name: Build & push Base ML image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile.base
           push: true
-          tags: ${{ steps.meta-base.outputs.tags }}
-          labels: ${{ steps.meta-base.outputs.labels }}
+          tags: ghcr.io/folkvarlabs/project-asylum:base-ml
           cache-from: type=gha,scope=base-ml
           cache-to: type=gha,mode=max,scope=base-ml
-          # Use BuildKit for better performance
-          build-args: |
-            BUILDKIT_INLINE_CACHE=1
 
       - name: Base Image Build Summary
         run: |
           echo "::notice::Base ML image built and pushed successfully"
-          echo "::notice::Tags: ${{ steps.meta-base.outputs.tags }}"
           echo "::notice::This image contains TensorFlow, PyTorch, and other heavy ML dependencies"
 
-  # Job 2: Build AI Application Image
+  # Job 3: Build AI Application Image
   # This job builds the main application image using the pre-built base.
-  # It runs on every push and depends on base image availability.
+  # It includes a fallback to build the base image if it doesn't exist.
   build-ai-image:
     name: Build Docker Images (ai)
     runs-on: ubuntu-latest
-    # Run after base image build (if it ran) or independently
-    needs: [build-base-image]
+    needs: [detect-changes, build-base-ml]
     if: always()
     permissions:
       contents: read
@@ -152,110 +146,118 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       # Log in to GitHub Container Registry
-      - name: Log in to Container Registry
+      - name: Login to GHCR
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Cache pip packages for any additional dependencies
-      # Key is based on requirements.txt hash for cache invalidation
-      - name: Cache pip packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+      # Ensure base image exists - build it if missing
+      - name: Ensure base image exists
+        id: ensure-base
+        shell: bash
+        run: |
+          set -e
+          if docker buildx imagetools inspect ghcr.io/folkvarlabs/project-asylum:base-ml >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Base image missing; building and pushing ghcr.io/folkvarlabs/project-asylum:base-ml"
+            docker buildx build \
+              --file Dockerfile.base \
+              --tag ghcr.io/folkvarlabs/project-asylum:base-ml \
+              --push \
+              --cache-from type=gha,scope=base-ml \
+              --cache-to type=gha,mode=max,scope=base-ml \
+              .
+          fi
 
       # Extract metadata for Docker image tagging
-      - name: Extract metadata for AI Image
+      - name: Extract metadata (optional labels)
         id: meta-ai
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ghcr.io/folkvarlabs/project-asylum
           tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
             type=raw,value=ai
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha
+            type=sha,format=short,prefix=ai-
 
       # Build and push the AI application image
-      # This build is fast because it uses the pre-built base image
-      # Layer caching further optimizes repeated builds
-      - name: Build and Push AI Image
+      - name: Build & push AI image
+        id: build-ai
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ steps.meta-ai.outputs.tags }}
+          tags: |
+            ghcr.io/folkvarlabs/project-asylum:ai
+            ghcr.io/folkvarlabs/project-asylum:ai-${{ github.sha }}
           labels: ${{ steps.meta-ai.outputs.labels }}
-          # GitHub Actions cache for Docker layers
-          # This cache is separate from the base image cache
           cache-from: type=gha,scope=ai-app
           cache-to: type=gha,mode=max,scope=ai-app
           build-args: |
             BUILDKIT_INLINE_CACHE=1
 
+      # Display the image digest
+      - name: Show pushed image digest
+        run: echo "AI image digest - ${{ steps.build-ai.outputs.digest }}"
+
       - name: AI Image Build Summary
         run: |
           echo "::notice::AI application image built and pushed successfully"
-          echo "::notice::Tags: ${{ steps.meta-ai.outputs.tags }}"
-          echo "::notice::Base image: ghcr.io/${{ env.IMAGE_NAME }}:base-ml"
+          echo "::notice::Base image: ghcr.io/folkvarlabs/project-asylum:base-ml"
 
-      # Display build time and cache statistics
-      - name: Build Performance Metrics
-        run: |
-          echo "::group::Build Performance"
-          echo "Workflow Run: ${{ github.run_number }}"
-          echo "Commit SHA: ${{ github.sha }}"
-          echo "Branch: ${{ github.ref_name }}"
-          echo "::endgroup::"
-          echo "::notice::Check cache hit rates in the build logs above"
-          echo "::notice::Pip cache key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}"
-
-  # Job 3: Security Scanning (Optional but recommended)
+  # Job 4: Security Scanning
   # Scans the built images for vulnerabilities
+  # Only runs after successful AI image build
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
     needs: [build-ai-image]
-    if: always()
+    if: needs.build-ai-image.result == 'success'
     permissions:
       contents: read
+      packages: read
       security-events: write
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Log in to Container Registry
+      # Log in to GitHub Container Registry
+      - name: Login to GHCR
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # Run Trivy security scanner
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+      - name: Trivy scan (image)
+        id: trivy
+        uses: aquasecurity/trivy-action@0.18.0
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:ai
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
+          image-ref: ghcr.io/folkvarlabs/project-asylum:ai
+          format: sarif
+          output: trivy-results.sarif
+          ignore-unfixed: true
+          vuln-type: 'os,library'
 
-      # Upload results to GitHub Security tab
-      - name: Upload Trivy results to GitHub Security
+      # Check if SARIF file exists before uploading
+      - name: Check SARIF exists
+        id: check-sarif
+        run: |
+          if [ -f trivy-results.sarif ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Upload results to GitHub Security tab only if file exists
+      - name: Upload SARIF
+        if: steps.check-sarif.outputs.exists == 'true'
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
         with:
-          sarif_file: 'trivy-results.sarif'
+          sarif_file: trivy-results.sarif
 
       - name: Security Scan Summary
         run: |
