@@ -7,7 +7,7 @@
 # Included dependencies:
 # - Python 3.11
 # - CUDA 12.2 for GPU acceleration
-# - TensorFlow 2.15 with GPU support
+# - TensorFlow 2.18 with GPU support
 # - PyTorch 2.1 with CUDA support
 # - Common ML libraries (scikit-learn, pandas, numpy, scipy)
 # - Infrastructure monitoring tools

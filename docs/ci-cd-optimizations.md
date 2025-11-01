@@ -20,7 +20,7 @@ The optimizations reduce typical build times from **15-20 minutes to under 2 min
 │  ghcr.io/folkvarlabs/project-asylum:base-ml │
 │  ├─ Python 3.11                            │
 │  ├─ CUDA 12.2 + cuDNN                      │
-│  ├─ TensorFlow 2.15                        │
+│  ├─ TensorFlow 2.18                        │
 │  ├─ PyTorch 2.1                            │
 │  ├─ scikit-learn, pandas, numpy            │
 │  └─ Other heavy ML dependencies            │
@@ -68,7 +68,7 @@ The optimizations reduce typical build times from **15-20 minutes to under 2 min
 ### 2. Base Image Strategy
 
 **Base Image (`Dockerfile.base`):**
-- Contains all heavy ML dependencies (TensorFlow, PyTorch, CUDA)
+- Contains all heavy ML dependencies (TensorFlow 2.18, PyTorch 2.1, CUDA 12.2)
 - Built once and stored in GitHub Container Registry
 - Tagged as `ghcr.io/folkvarlabs/project-asylum:base-ml`
 - Only rebuilt when `requirements.txt` changes
