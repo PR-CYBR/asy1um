@@ -23,8 +23,12 @@ package-lock.json
 *.tfstate
 *.tfstate.*
 *.tfvars
+!terraform/envs/**/*.tfvars
 .terraform.lock.hcl
 terraform.tfstate.d/
+*.tfplan
+tfplan
+plan.txt
 
 # Docker
 docker-compose.override.yml

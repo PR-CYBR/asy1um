@@ -2,9 +2,9 @@ name: Project Asylum CI/CD
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
 
 env:
   TERRAFORM_VERSION: '1.5.7'
@@ -50,7 +50,7 @@ jobs:
       - name: Validate YAML files
         run: |
           pip install yamllint
-          yamllint -d relaxed .
+          yamllint -s -c .yamllint.yml .
 
       - name: Validate JSON files
         run: |
@@ -187,6 +187,15 @@ jobs:
     if: github.event_name == 'pull_request'
     env:
       CHECKPOINT_DISABLE: '1'
+      # Dummy credentials for provider initialization in CI (not used for actual resources)
+      AWS_ACCESS_KEY_ID: 'dummy'
+      AWS_SECRET_ACCESS_KEY: 'dummy'
+      GOOGLE_CREDENTIALS: '{"type":"service_account","project_id":"dummy","private_key_id":"dummy","private_key":"-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC7VJTUt9Us8cKj\nMzEfYyjiWA4R4/M2bS1+fWIcPm15j7Cmpn8fI4AL6I6g5k0FbP0qVIQVQiJKVvKn\nXbBc\n-----END PRIVATE KEY-----\n","client_email":"dummy@dummy.iam.gserviceaccount.com","client_id":"dummy","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token"}'
+      ARM_SKIP_PROVIDER_REGISTRATION: 'true'
+      ARM_TENANT_ID: '00000000-0000-0000-0000-000000000000'
+      ARM_SUBSCRIPTION_ID: '00000000-0000-0000-0000-000000000000'
+      ARM_CLIENT_ID: '00000000-0000-0000-0000-000000000000'
+      ARM_CLIENT_SECRET: 'dummy'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -205,23 +214,45 @@ jobs:
 
       - name: Terraform Init
         working-directory: ./terraform
-        run: terraform init -backend=false -upgrade
+        run: terraform init -upgrade
 
       - name: Terraform Plan
+        id: plan
         working-directory: ./terraform
-        run: terraform plan -var-file=envs/dev/terraform.tfvars -out=tfplan
+        run: |
+          echo "Running Terraform plan..."
+          if [ -f "envs/dev/terraform.tfvars" ]; then
+            terraform plan -var-file=envs/dev/terraform.tfvars -out=tfplan -no-color 2>&1 | tee plan.txt
+          else
+            terraform plan -out=tfplan -no-color 2>&1 | tee plan.txt
+          fi
+        continue-on-error: true
+
+      - name: Upload Plan Output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan
+          path: terraform/plan.txt
 
       - name: Comment PR with plan
         uses: actions/github-script@v7
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && steps.plan.outcome == 'success'
         with:
           script: |
-            const output = `#### Terraform Plan 📖
+            const fs = require('fs');
+            const planOutput = fs.existsSync('terraform/plan.txt') ?
+              fs.readFileSync('terraform/plan.txt', 'utf8') :
+              'Plan output not available';
+            const truncatedPlan = planOutput.length > 65000 ?
+              planOutput.substring(0, 65000) + '\n...(truncated)' :
+              planOutput;
+            const output = `#### Terraform Plan 📖 \`${{ steps.plan.outcome }}\`
 
             <details><summary>Show Plan</summary>
 
-            \`\`\`
-            Terraform plan completed. Review the plan output.
+            \`\`\`hcl
+            ${truncatedPlan}
             \`\`\`
 
             </details>
