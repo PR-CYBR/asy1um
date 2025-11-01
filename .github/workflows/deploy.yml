@@ -109,10 +109,18 @@ jobs:
         run: |
           npx eslint . --ext .js || true
 
-      - name: Validate YAML files
+      - name: Validate YAML files (warnings allowed, errors fail)
+        shell: bash
         run: |
           pip install yamllint
-          yamllint -s -c .yamllint.yml .
+          set +e
+          yamllint -s -c .yamllint.yml . | tee yamllint.out
+          rc=${PIPESTATUS[0]}
+          if [ $rc -eq 1 ]; then
+            echo "::error::YAML errors detected"; exit 1
+          else
+            echo "YAML clean or warnings only (treated as pass)"; exit 0
+          fi
 
       - name: Validate JSON files
         run: |

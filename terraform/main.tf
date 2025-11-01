@@ -1,30 +1,3 @@
-terraform {
-  required_version = ">= 1.0"
-
-  required_providers {
-    docker = {
-      source  = "kreuzwerker/docker"
-      version = "~> 3.0"
-    }
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-    google = {
-      source  = "hashicorp/google"
-      version = "~> 5.0"
-    }
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~> 3.0"
-    }
-  }
-
-  backend "local" {
-    path = "terraform.tfstate"
-  }
-}
-
 # Docker module (default for local development)
 module "docker" {
   source = "./modules/docker"
