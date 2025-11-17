@@ -12,6 +12,7 @@ Project Asylum is a **self-adapting infrastructure management framework** that u
 ## 🎯 Core Features
 
 - **🤖 AI/ML Adaptation Engine**: TensorFlow-based anomaly detection that learns from attacker behavior
+- **🛡️ CVE/CVSS Enrichment**: Automatic detection and enrichment of CVE identifiers with NIST NVD data for context-aware threat intelligence
 - **🏗️ Infrastructure as Code**: Modular Terraform configurations for Docker, Proxmox, AWS, GCP, and Azure
 - **📊 Comprehensive Monitoring**: Prometheus, Grafana, and ELK Stack for metrics and log analysis
 - **🍯 Honeypot System**: Cowrie SSH/Telnet honeypot with automatic configuration rotation
@@ -218,6 +219,40 @@ curl -X POST http://localhost:8000/analyze \
   }'
 ```
 
+## 🛡️ CVE/CVSS Enrichment
+
+The system automatically detects CVE identifiers in honeypot logs and enriches them with data from NIST's National Vulnerability Database (NVD).
+
+### Query CVE Information
+
+```bash
+# Get detailed CVE information
+curl "http://localhost:8000/cveinfo?cve=CVE-2021-44228"
+
+# Detect CVEs in text
+curl -X POST http://localhost:8000/cve/detect \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Exploit attempt using CVE-2021-44228"}'
+```
+
+### Adaptive Response Based on CVSS
+
+The orchestration layer automatically adapts infrastructure based on CVE severity:
+
+- **CVSS >= 9.0 (Critical)**: Deploy specialized honeypots, redirect to isolated decoy, maximum monitoring
+- **CVSS >= 7.0 (High)**: Scale honeypots, elevated monitoring
+- **CVSS >= 4.0 (Medium)**: Enhanced logging
+- **CVSS < 4.0 (Low)**: Log for analysis
+
+### Demo
+
+```bash
+# Run the CVE enrichment demo
+docker-compose exec ai-api python demo_cve.py
+```
+
+See [docs/cve-integration.md](docs/cve-integration.md) for complete documentation.
+
 ## 📊 Monitoring & Visualization
 
 ### Grafana Dashboards
@@ -251,7 +286,17 @@ Access Kibana at http://localhost:5601
 
 Search for high-anomaly events:
 ```
+# High anomaly scores
 event_category:command_execution AND anomaly_score:>15
+
+# CVE-related events
+cve_detected:true
+
+# Critical CVEs only
+cve_severity:CRITICAL
+
+# High CVSS scores
+max_cvss_score:>=9.0
 ```
 
 ## 🔄 Feedback Loop
@@ -349,6 +394,7 @@ curl -X POST http://localhost:3001/events \
 
 ## 📚 Documentation
 
+- **[CVE Integration](docs/cve-integration.md)**: CVE/CVSS enrichment and adaptive response guide
 - **[Feedback Loop](docs/feedback-loop.md)**: Detailed feedback loop documentation
 - **[Roadmap](docs/roadmap.md)**: Project development roadmap
 - **[Target Milestones](docs/target-milestones.md)**: Planned milestones
