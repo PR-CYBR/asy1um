@@ -11,6 +11,7 @@ import sys
 sys.path.append(str(Path(__file__).parent.parent))
 
 from model.anomaly_detector import AnomalyDetector, generate_recommendations  # noqa: E402
+from api.cve_enrichment import get_cve_info, extract_cves, enrich_log_with_cves  # noqa: E402
 
 app = FastAPI(
     title="Project Asylum AI API",
@@ -229,6 +230,81 @@ async def load_model(name: str = "anomaly_detector"):
         }
     except Exception as e:
         raise HTTPException(status_code=404, detail=f"Failed to load model: {str(e)}")
+
+
+@app.get("/cveinfo")
+async def get_cve_information(cve: str):
+    """
+    Get CVE information including CVSS score, severity, and description.
+    This endpoint serves as a centralized CVE enrichment microservice.
+
+    Args:
+        cve: CVE identifier (e.g., CVE-2021-44228)
+
+    Returns:
+        CVE details including CVSS score, severity, and description
+    """
+    try:
+        cve_data = get_cve_info(cve)
+
+        if "error" in cve_data:
+            status_code = 404 if cve_data.get("status") == "not_found" else 400
+            raise HTTPException(status_code=status_code, detail=cve_data["error"])
+
+        return cve_data
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class CVEDetectionRequest(BaseModel):
+    """Model for CVE detection request"""
+
+    text: str = Field(..., description="Text to search for CVE identifiers")
+
+
+class LogEnrichmentRequest(BaseModel):
+    """Model for log enrichment request"""
+
+    log_entry: Dict[str, Any] = Field(..., description="Log entry to enrich with CVE data")
+
+
+@app.post("/cve/detect")
+async def detect_cves(request: CVEDetectionRequest):
+    """
+    Detect CVE identifiers in text.
+
+    Args:
+        request: Contains text to search for CVE IDs
+
+    Returns:
+        List of detected CVE identifiers
+    """
+    try:
+        cve_ids = extract_cves(request.text)
+        return {"cve_ids": cve_ids, "count": len(cve_ids), "timestamp": datetime.now().isoformat()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/cve/enrich")
+async def enrich_log(request: LogEnrichmentRequest):
+    """
+    Enrich a log entry with CVE data.
+
+    Args:
+        request: Contains log entry to enrich
+
+    Returns:
+        Enriched log entry with CVE information
+    """
+    try:
+        enriched = enrich_log_with_cves(request.log_entry)
+        return enriched
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":
