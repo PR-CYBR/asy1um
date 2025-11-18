@@ -10,10 +10,9 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from pathlib import Path
 import requests
-from functools import lru_cache
 
 # CVE pattern regex as specified in requirements
-CVE_PATTERN = re.compile(r'\bCVE-\d{4}-\d+\b')
+CVE_PATTERN = re.compile(r"\bCVE-\d{4}-\d+\b")
 
 # NVD API configuration
 NVD_API_BASE_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"

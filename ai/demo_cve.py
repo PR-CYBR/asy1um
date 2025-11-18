@@ -12,7 +12,8 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from api.cve_enrichment import extract_cves, fetch_cve_from_nvd, enrich_log_with_cves
+# noqa: E402 - module imports after path manipulation
+from api.cve_enrichment import extract_cves, fetch_cve_from_nvd, enrich_log_with_cves  # noqa: E402
 
 
 def demo_cve_detection():
@@ -95,7 +96,7 @@ def demo_log_enrichment():
         # Show first enrichment details
         if enriched.get("cve_enrichments"):
             first_cve = enriched["cve_enrichments"][0]
-            print(f"\n  First CVE details:")
+            print("\n  First CVE details:")
             print(f"    - CVE ID: {first_cve.get('cve_id', 'N/A')}")
             print(f"    - CVSS: {first_cve.get('cvss_base_score', 'N/A')}")
             print(f"    - Status: {first_cve.get('enrichment_status', 'N/A')}")

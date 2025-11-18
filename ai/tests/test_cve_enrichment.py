@@ -5,7 +5,6 @@ Tests for CVE enrichment module
 import sys
 from pathlib import Path
 from unittest.mock import patch, MagicMock
-import json
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -169,7 +168,7 @@ class TestNVDFetch:
     def test_fetch_cve_timeout(self, mock_cache, mock_get):
         """Test API timeout"""
         import requests
-        
+
         mock_cache.get.return_value = None  # Ensure cache miss
         mock_get.side_effect = requests.exceptions.Timeout("Request timeout")
 

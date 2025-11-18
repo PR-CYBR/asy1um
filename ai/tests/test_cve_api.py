@@ -4,7 +4,7 @@ Tests for CVE API endpoints (integration-style tests)
 
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
