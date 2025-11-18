@@ -108,6 +108,10 @@ app.post('/events', async (req, res) => {
         response = await handleCompromiseEvent(data);
         break;
       
+      case 'cve_detected':
+        response = await handleCVEEvent(data);
+        break;
+      
       default:
         response = { status: 'ignored', message: `Unknown event type: ${type}` };
     }
@@ -198,10 +202,35 @@ app.get('/state', (req, res) => {
   });
 });
 
+// CVE information endpoint (proxy to AI API)
+app.get('/cve/:cveId', async (req, res) => {
+  try {
+    const { cveId } = req.params;
+    logger.info(`Fetching CVE info for: ${cveId}`);
+    
+    const response = await axios.get(`${AI_API_URL}/cveinfo?cve=${cveId}`, { timeout: 10000 });
+    res.json(response.data);
+  } catch (error) {
+    logger.error(`CVE fetch error: ${error.message}`);
+    
+    if (error.response) {
+      res.status(error.response.status).json(error.response.data);
+    } else {
+      res.status(500).json({ error: error.message });
+    }
+  }
+});
+
 // Event handlers
 async function handleAnomalyEvent(data) {
   logger.info('Handling anomaly event');
   orchestrationEvents.inc({ type: 'anomaly_handled' });
+  
+  // Check if CVE is involved
+  if (data.cve_detected && data.cve_ids) {
+    logger.warn(`CVE detected in anomaly: ${data.cve_ids}`);
+    return await handleCVEEvent(data);
+  }
   
   // Forward to AI for deeper analysis
   try {
@@ -211,6 +240,159 @@ async function handleAnomalyEvent(data) {
   }
 
   return { status: 'processed', action: 'anomaly_logged' };
+}
+
+async function handleCVEEvent(data) {
+  logger.warn('Handling CVE detection event');
+  orchestrationEvents.inc({ type: 'cve_detected' });
+  
+  const cveIds = data.cve_ids || [];
+  
+  if (cveIds.length === 0) {
+    return { status: 'ignored', message: 'No CVE IDs provided' };
+  }
+
+  // Fetch CVE details for each detected CVE
+  const cveDetails = [];
+  for (const cveId of cveIds) {
+    try {
+      const response = await axios.get(`${AI_API_URL}/cveinfo?cve=${cveId}`, { timeout: 5000 });
+      cveDetails.push(response.data);
+    } catch (error) {
+      logger.error(`Failed to fetch CVE info for ${cveId}: ${error.message}`);
+    }
+  }
+
+  if (cveDetails.length === 0) {
+    logger.warn('Failed to fetch CVE details, proceeding with default handling');
+    return { status: 'partial', message: 'CVE enrichment failed' };
+  }
+
+  // Determine maximum CVSS score
+  const cvssScores = cveDetails
+    .filter(cve => cve.cvss_base_score)
+    .map(cve => cve.cvss_base_score);
+  
+  const maxCVSS = cvssScores.length > 0 ? Math.max(...cvssScores) : 0;
+  
+  logger.info(`CVE detected with max CVSS score: ${maxCVSS}`);
+
+  // Adaptive response based on CVSS severity
+  const actions = [];
+  
+  if (maxCVSS >= 9.0) {
+    // CRITICAL severity (CVSS >= 9.0)
+    logger.error(`CRITICAL CVE detected! CVSS: ${maxCVSS}`);
+    
+    actions.push({
+      type: 'deploy_specialized_honeypot',
+      priority: 'critical',
+      reason: `Critical CVE detected with CVSS ${maxCVSS}`,
+      parameters: {
+        honeypot_type: 'high_interaction',
+        isolation_level: 'maximum',
+        logging_level: 'verbose'
+      }
+    });
+    
+    actions.push({
+      type: 'increase_monitoring',
+      priority: 'critical',
+      parameters: {
+        monitoring_level: 'maximum',
+        alert_threshold: 'low',
+        session_recording: true
+      }
+    });
+    
+    actions.push({
+      type: 'redirect_attacker',
+      priority: 'critical',
+      parameters: {
+        target: 'isolated_decoy',
+        instrumentation: 'full'
+      }
+    });
+
+    // Trigger infrastructure update
+    try {
+      await triggerTerraformUpdate({
+        severity: 'critical',
+        actions: actions,
+        cve_info: cveDetails
+      });
+    } catch (error) {
+      logger.error(`Failed to trigger Terraform update: ${error.message}`);
+    }
+
+  } else if (maxCVSS >= 7.0) {
+    // HIGH severity (7.0 <= CVSS < 9.0)
+    logger.warn(`HIGH severity CVE detected! CVSS: ${maxCVSS}`);
+    
+    actions.push({
+      type: 'scale_honeypots',
+      priority: 'high',
+      reason: `High severity CVE detected with CVSS ${maxCVSS}`,
+      parameters: {
+        scale_factor: 1.5,
+        honeypot_type: 'medium_interaction'
+      }
+    });
+    
+    actions.push({
+      type: 'increase_monitoring',
+      priority: 'high',
+      parameters: {
+        monitoring_level: 'elevated',
+        alert_threshold: 'medium'
+      }
+    });
+
+    // Medium-level adaptive response
+    try {
+      await triggerTerraformUpdate({
+        severity: 'high',
+        actions: actions,
+        cve_info: cveDetails
+      });
+    } catch (error) {
+      logger.error(`Failed to trigger infrastructure update: ${error.message}`);
+    }
+
+  } else if (maxCVSS >= 4.0) {
+    // MEDIUM severity
+    logger.info(`MEDIUM severity CVE detected. CVSS: ${maxCVSS}`);
+    
+    actions.push({
+      type: 'log_and_monitor',
+      priority: 'medium',
+      reason: `Medium severity CVE detected with CVSS ${maxCVSS}`,
+      parameters: {
+        enhanced_logging: true
+      }
+    });
+  } else {
+    // LOW/NONE severity - default behavior
+    logger.info(`LOW severity CVE detected. CVSS: ${maxCVSS}`);
+    
+    actions.push({
+      type: 'log',
+      priority: 'low',
+      reason: `Low severity CVE detected with CVSS ${maxCVSS}`
+    });
+  }
+
+  return {
+    status: 'processed',
+    cve_count: cveDetails.length,
+    max_cvss_score: maxCVSS,
+    actions: actions,
+    cve_details: cveDetails.map(cve => ({
+      cve_id: cve.cve_id,
+      cvss_score: cve.cvss_base_score,
+      severity: cve.cvss_severity
+    }))
+  };
 }
 
 async function handleThresholdEvent(data) {
