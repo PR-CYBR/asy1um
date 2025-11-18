@@ -1,0 +1,89 @@
+# .dockerignore - Exclude files from Docker build context
+# This reduces build time and image size by excluding unnecessary files
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# GitHub
+.github
+
+# Documentation
+*.md
+docs/
+README.md
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+.tox/
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Tests
+tests/
+test/
+*_test.py
+test_*.py
+
+# CI/CD
+.travis.yml
+.circleci/
+.gitlab-ci.yml
+azure-pipelines.yml
+
+# Docker
+Dockerfile.base
+docker-compose*.yml
+.dockerignore
+
+# Terraform (if not needed in container)
+*.tfstate
+*.tfstate.backup
+.terraform/
+terraform.tfvars
+
+# Environment
+.env
+.env.local
+.env.*.local

@@ -1,0 +1,74 @@
+# Dockerfile.base - Optimized base image with heavy ML dependencies
+#
+# This base image contains all heavy ML/AI dependencies to reduce build time
+# and costs in CI/CD pipelines. The image is built once and reused across
+# all subsequent builds.
+#
+# Included dependencies:
+# - Python 3.11
+# - CUDA 12.2 for GPU acceleration
+# - TensorFlow 2.18 with GPU support
+# - PyTorch 2.1 with CUDA support
+# - Common ML libraries (scikit-learn, pandas, numpy, scipy)
+# - Infrastructure monitoring tools
+#
+# Build command:
+#   docker build -f Dockerfile.base -t ghcr.io/folkvarlabs/project-asylum:base-ml .
+#
+# Push command:
+#   docker push ghcr.io/folkvarlabs/project-asylum:base-ml
+#
+# Maintenance:
+# - Rebuild this image only when major dependencies change (TensorFlow, PyTorch versions)
+# - Update the workflow to rebuild automatically when requirements.txt hash changes
+
+FROM nvidia/cuda:12.2.0-cudnn8-runtime-ubuntu22.04
+
+# Set environment variables to prevent interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    CUDA_HOME=/usr/local/cuda \
+    PATH=/usr/local/cuda/bin:$PATH \
+    LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3.11-dev \
+    python3-pip \
+    python3.11-venv \
+    build-essential \
+    git \
+    curl \
+    wget \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create symbolic links for python
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1 && \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+
+# Upgrade pip
+RUN python -m pip install --upgrade pip setuptools wheel
+
+# Install heavy ML dependencies
+# These are the most time-consuming packages to install
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt && \
+    rm /tmp/requirements.txt
+
+# Create app directory
+RUN mkdir -p /app
+WORKDIR /app
+
+# Health check for the base image
+RUN python -c "import tensorflow as tf; print('TensorFlow:', tf.__version__)" && \
+    python -c "import torch; print('PyTorch:', torch.__version__)" && \
+    python -c "import sklearn; print('scikit-learn:', sklearn.__version__)" && \
+    echo "Base image ML dependencies verified successfully"
+
+# Default command (will be overridden by the main Dockerfile)
+CMD ["/bin/bash"]
