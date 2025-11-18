@@ -239,19 +239,33 @@ async def get_cve_information(cve: str):
     This endpoint serves as a centralized CVE enrichment microservice.
 
     Args:
-        cve: CVE identifier (e.g., CVE-2021-44228)
+        cve: CVE identifier (e.g., CVE-2021-44228) or comma-separated list (e.g., CVE-2021-44228,CVE-2020-1234)
 
     Returns:
-        CVE details including CVSS score, severity, and description
+        CVE details including CVSS score, severity, and description.
+        If multiple CVEs provided, returns a list of CVE details.
     """
     try:
-        cve_data = get_cve_info(cve)
+        # Handle comma-separated list of CVE IDs
+        cve_list = [c.strip() for c in cve.split(",")]
 
-        if "error" in cve_data:
-            status_code = 404 if cve_data.get("status") == "not_found" else 400
-            raise HTTPException(status_code=status_code, detail=cve_data["error"])
+        # If single CVE, return single object for backward compatibility
+        if len(cve_list) == 1:
+            cve_data = get_cve_info(cve_list[0])
 
-        return cve_data
+            if "error" in cve_data:
+                status_code = 404 if cve_data.get("status") == "not_found" else 400
+                raise HTTPException(status_code=status_code, detail=cve_data["error"])
+
+            return cve_data
+
+        # Multiple CVEs - return list
+        results = []
+        for cve_id in cve_list:
+            cve_data = get_cve_info(cve_id)
+            results.append(cve_data)
+
+        return {"cves": results, "count": len(results)}
 
     except HTTPException:
         raise

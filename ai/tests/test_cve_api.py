@@ -35,6 +35,64 @@ class TestCVEEndpointsLogic:
         assert result["cvss_base_score"] == 10.0
         assert result["cvss_severity"] == "CRITICAL"
 
+    @patch("api.cve_enrichment.get_cve_info")
+    def test_cveinfo_endpoint_logic_multiple_cves(self, mock_get_cve_info):
+        """Test CVE info retrieval with comma-separated list"""
+        from api.cve_enrichment import get_cve_info
+
+        # Mock returns for different CVEs
+        def mock_get_info(cve_id):
+            if cve_id == "CVE-2021-44228":
+                return {
+                    "cve_id": "CVE-2021-44228",
+                    "cvss_base_score": 10.0,
+                    "cvss_severity": "CRITICAL",
+                    "enrichment_status": "success",
+                }
+            elif cve_id == "CVE-2020-1234":
+                return {
+                    "cve_id": "CVE-2020-1234",
+                    "cvss_base_score": 7.5,
+                    "cvss_severity": "HIGH",
+                    "enrichment_status": "success",
+                }
+
+        mock_get_cve_info.side_effect = mock_get_info
+
+        # Test with comma-separated string
+        cve_list = [c.strip() for c in "CVE-2021-44228,CVE-2020-1234".split(",")]
+
+        results = []
+        for cve_id in cve_list:
+            results.append(get_cve_info(cve_id))
+
+        assert len(results) == 2
+        assert results[0]["cve_id"] == "CVE-2021-44228"
+        assert results[1]["cve_id"] == "CVE-2020-1234"
+
+    @patch("api.cve_enrichment.get_cve_info")
+    def test_cveinfo_endpoint_logic_with_whitespace(self, mock_get_cve_info):
+        """Test CVE info retrieval with whitespace in comma-separated list"""
+
+        def mock_get_info(cve_id):
+            return {
+                "cve_id": cve_id,
+                "cvss_base_score": 8.0,
+                "cvss_severity": "HIGH",
+                "enrichment_status": "success",
+            }
+
+        mock_get_cve_info.side_effect = mock_get_info
+
+        # Test with whitespace around commas
+        cve_string = "CVE-2021-44228 , CVE-2020-1234  ,  CVE-2019-5678"
+        cve_list = [c.strip() for c in cve_string.split(",")]
+
+        assert len(cve_list) == 3
+        assert cve_list[0] == "CVE-2021-44228"
+        assert cve_list[1] == "CVE-2020-1234"
+        assert cve_list[2] == "CVE-2019-5678"
+
     def test_cveinfo_endpoint_logic_invalid(self):
         """Test invalid CVE ID format logic"""
         from api.cve_enrichment import get_cve_info
